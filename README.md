@@ -24,6 +24,7 @@ The workflow currently produces a validated-input report and a separate source/a
 .github/workflows/build.yml
 mods/
   MenuUI.lua
+  VRWristMenu.lua
   Movement.lua
   Physics.lua
   Visuals.lua
@@ -38,12 +39,49 @@ res/
 ## Framework modules
 
 - ASSOCIATED category menu structure
+- VR wrist-mounted SurfaceGui menu, following the left-hand pose
+- Controller **Y** button toggle
+- Universe-ID gate for `76028293692604`; it stays disabled in other experiences
 - Movement feature registry and input hooks
 - Physics feature registry
 - Visual settings registry
 - Extensible feature registration
 
 The Lua files are source modules, not a standalone APK runtime. Integrate them through APIs provided by a client or experience you control. Keep privileged operations server-authoritative and restrict developer controls to explicitly authorized test users.
+
+## VR wrist menu integration
+
+`mods/VRWristMenu.lua` creates a world-space panel attached to the left controller pose. Press **Y** on the gamepad to show or hide it. The module refuses to start unless VR is enabled and `game.GameId` equals the configured universe ID.
+
+Example LocalScript (adjust the ModuleScript paths to match your project):
+
+```lua
+local Registry = require(script.Parent.framework.Registry)
+local Movement = require(script.Parent.mods.Movement)
+local Physics = require(script.Parent.mods.Physics)
+local Visuals = require(script.Parent.mods.Visuals)
+local WristMenu = require(script.Parent.mods.VRWristMenu)
+
+local registry = Registry.new()
+Movement.Register(registry)
+Physics.Register(registry)
+Visuals.Register(registry)
+
+local menu, reason = WristMenu.Start({
+    Registry = registry,
+    TargetUniverseId = 76028293692604,
+    OnFeatureChanged = function(feature, enabled, context)
+        -- Connect only mechanics implemented and authorized by your host experience.
+        print(feature.name, enabled)
+    end,
+})
+
+if not menu then
+    warn("ASSOCIATED VR menu did not start: " .. tostring(reason))
+end
+```
+
+The menu and controller binding are implemented here. Feature definitions remain registered hooks: each actual gameplay mechanic must be supplied by the host experience/client through its supported APIs. This module does not inject into, patch, or bypass protections in another application.
 
 ## Branding
 

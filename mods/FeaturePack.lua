@@ -283,7 +283,6 @@ function FeaturePack:_handler(name)
             end
         elseif name == "Dash" and enabled then
             self:_dash()
-            self.Enabled.Dash = false
         elseif name == "Fly" and not enabled then
             local root = self:_root()
             if root then

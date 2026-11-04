@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">ASSOCIATED M icon</title>
+  <desc id="desc">An original tilted-square game mark beside a bold M.</desc>
+  <rect width="512" height="512" rx="104" fill="#10131B"/>
+  <g transform="translate(58 92)">
+    <rect x="16" y="16" width="208" height="208" rx="18" fill="#FFFFFF" transform="rotate(-12 120 120)"/>
+    <rect x="78" y="78" width="84" height="84" rx="7" fill="#10131B" transform="rotate(-12 120 120)"/>
+  </g>
+  <path d="M292 154h42l39 62 39-62h42v204h-43V224l-38 58h-2l-38-58v134h-41z" fill="#657BFF"/>
+</svg>

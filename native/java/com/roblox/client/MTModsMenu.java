@@ -34,7 +34,19 @@ public final class MTModsMenu {
 
     public static void install(Activity activity) {
         if (activity == null || activity.isFinishing()) return;
-        activity.runOnUiThread(() -> attach(activity));
+        activity.runOnUiThread(() -> {
+            try {
+                if (scriptLoader == null) {
+                    scriptLoader = new MTModsScriptLoader(activity);
+                    String bootError = scriptLoader.load("bootstrap.lua");
+                    if (!bootError.isEmpty()) android.util.Log.e("MT-Mods", bootError);
+                }
+                attach(activity);
+            } catch (Throwable error) {
+                android.util.Log.e("MT-Mods", "Script host startup failed", error);
+                attach(activity);
+            }
+        });
     }
 
     private static GradientDrawable shape(int color, int radius) {

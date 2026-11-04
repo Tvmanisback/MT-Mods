@@ -1,74 +1,80 @@
-name: Roblox APK Full Decode
+name: ASSOCIATED Modding Package Build
+
 on:
   workflow_dispatch:
+
 permissions:
-  contents: write
+  contents: read
+
 jobs:
-  decode:
+  package:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: true
+      - name: Check out repository
+        uses: actions/checkout@v4
 
-      - name: Install Apktool
+      - name: Install ZIP utilities
         run: |
           sudo apt-get update
-          sudo apt-get install -y apktool
+          sudo apt-get install -y unzip zip
 
-      - name: Download APK from GitHub Release
+      - name: Download decoded project archive
+        env:
+          INPUT_URL: https://github.com/Tvmanisback/MT-Mods/releases/download/Test/roblox-apk-full-decode.zip
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/apk-input"
-          curl --fail --location --retry 3 \
-            "https://github.com/Tvmanisback/MT-Mods/releases/download/Test/Roblox_2.745.1137.apk" \
-            -o "$RUNNER_TEMP/apk-input/Roblox_2.745.1137.apk"
-          test -s "$RUNNER_TEMP/apk-input/Roblox_2.745.1137.apk"
+          mkdir -p "$RUNNER_TEMP/input" output
+          curl --fail --location --retry 3 "$INPUT_URL" \
+            -o "$RUNNER_TEMP/input/roblox-apk-full-decode.zip"
+          test -s "$RUNNER_TEMP/input/roblox-apk-full-decode.zip"
+          unzip -t "$RUNNER_TEMP/input/roblox-apk-full-decode.zip"
 
-      - name: Fully decode APK with Apktool
+      - name: Validate decoded archive and record metadata
         run: |
           set -euo pipefail
-          APK="$RUNNER_TEMP/apk-input/Roblox_2.745.1137.apk"
-          rm -rf inspection/decompiled
-          mkdir -p inspection
-          # Full Apktool decode: manifest, resources, assets, native libraries,
-          # and DEX bytecode translated to Smali source files.
-          apktool d --force --output inspection/decompiled "$APK"
-          printf '%s\n' \
-            "# Full APK decode" \
-            "" \
-            "Decoded with Apktool, including DEX-to-Smali output where supported." \
-            "Original APK remains in the GitHub Release; it is not copied into this repository." \
-            > inspection/README.md
-          sha256sum "$APK" > inspection/apk-sha256.txt
-          du -sh inspection/decompiled
+          python3 - <<'PY'
+          import hashlib
+          import pathlib
+          import zipfile
 
-      - name: Commit decoded files
+          archive = pathlib.Path("$RUNNER_TEMP/input/roblox-apk-full-decode.zip")
+          report = pathlib.Path("output/input-report.txt")
+          with zipfile.ZipFile(archive) as zf:
+              names = [n for n in zf.namelist() if not n.endswith("/")]
+              basenames = {pathlib.PurePosixPath(n).name for n in names}
+              required = {"AndroidManifest.xml", "apktool.yml"}
+              missing = required - basenames
+              if missing:
+                  raise SystemExit("Decoded archive is missing: " + ", ".join(sorted(missing)))
+              digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+          report.write_text(
+              "Decoded input archive validated.\n"
+              f"Archive: {archive.name}\n"
+              f"Files: {len(names)}\n"
+              f"SHA-256: {digest}\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Package mod source and visual resources
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+users.noreply.github.com"
-          git add -A inspection/
-          if git diff --cached --quiet; then
-            echo "Decoded output has not changed."
-            exit 0
-          fi
-          # GitHub rejects individual files larger than 100 MB. If the decode
-          # exceeds repository limits, preserve the run output as an artifact
-          # instead of silently truncating or modifying the decoded tree.
-          if git diff --cached --name-only -z | xargs -0 -r -I{} sh -c 'test ! -f "$1" || test "$(stat -c%s "$1")" -le 100000000' _ {} ; then
-            git commit -m "Add full APK decode for inspection [skip ci]"
-            git push
-          else
-            echo "A decoded file exceeds GitHub's 100 MB per-file limit."
-            exit 1
-          fi
+          mkdir -p output/ASSOCIATED-Modding-Kit
+          cp -R mods framework res output/ASSOCIATED-Modding-Kit/
+          cp README.md output/ASSOCIATED-Modding-Kit/
+          (
+            cd output
+            zip -qr ASSOCIATED-Modding-Kit.zip ASSOCIATED-Modding-Kit
+          )
+          sha256sum output/ASSOCIATED-Modding-Kit.zip > output/SHA256SUMS.txt
 
-      - name: Upload decoded tree if commit limits are exceeded
-        if: failure()
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: roblox-apk-full-decode
-          path: inspection/decompiled/
-          if-no-files-found: warn
-          retention-days: 7
+          name: ASSOCIATED-Modding-Package
+          path: |
+            output/ASSOCIATED-Modding-Kit.zip
+            output/input-report.txt
+            output/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14

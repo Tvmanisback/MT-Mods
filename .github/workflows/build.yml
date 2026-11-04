@@ -1,0 +1,69 @@
+name: ASSOCIATED Framework Build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Validate and package framework
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Require one base APK in RBLX_APK
+        shell: bash
+        run: |
+          shopt -s nullglob
+          apks=(RBLX_APK/*.apk RBLX_APK/*.APK)
+          if [ "${#apks[@]}" -eq 0 ]; then
+            echo "::error title=Missing base APK::Put exactly one authorized test APK in RBLX_APK/."
+            exit 1
+          fi
+          if [ "${#apks[@]}" -ne 1 ]; then
+            echo "::error title=Ambiguous base APK::RBLX_APK must contain exactly one APK."
+            exit 1
+          fi
+          echo "Found input file: ${apks[0]}"
+          echo "APK_INPUT=${apks[0]}" >> "$GITHUB_ENV"
+
+      - name: Validate source modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in mods/MenuUI.lua mods/Movement.lua mods/Physics.lua mods/Visuals.lua; do
+            test -s "$file" || {
+              echo "::error title=Missing module::$file is missing or empty."
+              exit 1
+            }
+          done
+
+      - name: Package source framework
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp "$APK_INPUT" dist/authorized-test-input.apk
+          zip -r dist/ASSOCIATED-Framework.zip             mods framework res README.md
+          sha256sum dist/* > dist/SHA256SUMS.txt
+
+      - name: Upload framework artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ASSOCIATED-Framework
+          path: |
+            dist/ASSOCIATED-Framework.zip
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14

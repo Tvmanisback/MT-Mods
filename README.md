@@ -25,6 +25,7 @@ The workflow currently produces a validated-input report and a separate source/a
 mods/
   MenuUI.lua
   VRWristMenu.lua
+  FeaturePack.lua
   Movement.lua
   Physics.lua
   Visuals.lua
@@ -42,9 +43,8 @@ res/
 - VR wrist-mounted SurfaceGui menu, following the left-hand pose
 - Controller **Y** button toggle
 - Universe-ID gate for `76028293692604`; it stays disabled in other experiences
-- Movement feature registry and input hooks
-- Physics feature registry
-- Visual settings registry
+- Local-player movement feature handlers
+- Local physics and visual feature handlers
 - Extensible feature registration
 
 The Lua files are source modules, not a standalone APK runtime. Integrate them through APIs provided by a client or experience you control. Keep privileged operations server-authoritative and restrict developer controls to explicitly authorized test users.
@@ -57,15 +57,14 @@ Example LocalScript (adjust the ModuleScript paths to match your project):
 
 ```lua
 local Registry = require(script.Parent.framework.Registry)
-local Movement = require(script.Parent.mods.Movement)
-local Physics = require(script.Parent.mods.Physics)
-local Visuals = require(script.Parent.mods.Visuals)
+local FeaturePack = require(script.Parent.mods.FeaturePack)
 local WristMenu = require(script.Parent.mods.VRWristMenu)
 
 local registry = Registry.new()
-Movement.Register(registry)
-Physics.Register(registry)
-Visuals.Register(registry)
+local features = FeaturePack.new({
+    TargetUniverseId = 76028293692604,
+})
+features:Register(registry)
 
 local menu, reason = WristMenu.Start({
     Registry = registry,
@@ -81,7 +80,7 @@ if not menu then
 end
 ```
 
-The menu and controller binding are implemented here. Feature definitions remain registered hooks: each actual gameplay mechanic must be supplied by the host experience/client through its supported APIs. This module does not inject into, patch, or bypass protections in another application.
+The menu and controller binding are implemented here. `mods/FeaturePack.lua` supplies local-player handlers for the listed movement, physics, and visual features. These are client-side effects; a multiplayer server may override or reject movement/physics changes. Long Arms depends on the avatar exposing an R15 scale value. Fly uses Space/Ctrl for vertical movement on keyboard; adapt those controls for your client's VR controller mapping. Call `features:Destroy()` when unloading the mod to restore saved local settings and remove its temporary objects.
 
 ## Branding
 

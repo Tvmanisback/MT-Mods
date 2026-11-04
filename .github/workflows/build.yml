@@ -1,4 +1,4 @@
-name: Roblox APK Resource Decode
+name: Roblox APK Full Decode
 on:
   workflow_dispatch:
 permissions:
@@ -25,23 +25,23 @@ jobs:
             -o "$RUNNER_TEMP/apk-input/Roblox_2.745.1137.apk"
           test -s "$RUNNER_TEMP/apk-input/Roblox_2.745.1137.apk"
 
-      - name: Decode manifest and resources
+      - name: Fully decode APK with Apktool
         run: |
           set -euo pipefail
           APK="$RUNNER_TEMP/apk-input/Roblox_2.745.1137.apk"
           rm -rf inspection/decompiled
           mkdir -p inspection
-          # Decode Android resources and manifest, while deliberately skipping
-          # DEX-to-smali output and executable-code reconstruction.
-          apktool d --no-src --force -o inspection/decompiled "$APK"
-          mkdir -p inspection
+          # Full Apktool decode: manifest, resources, assets, native libraries,
+          # and DEX bytecode translated to Smali source files.
+          apktool d --force --output inspection/decompiled "$APK"
           printf '%s\n' \
-            "# APK resource decode" \
+            "# Full APK decode" \
             "" \
-            "Decoded AndroidManifest.xml and Android resources with Apktool." \
-            "DEX/smali executable-code decompilation is not included." \
+            "Decoded with Apktool, including DEX-to-Smali output where supported." \
+            "Original APK remains in the GitHub Release; it is not copied into this repository." \
             > inspection/README.md
           sha256sum "$APK" > inspection/apk-sha256.txt
+          du -sh inspection/decompiled
 
       - name: Commit decoded files
         run: |
@@ -53,5 +53,22 @@ jobs:
             echo "Decoded output has not changed."
             exit 0
           fi
-          git commit -m "Decode APK resources for inspection [skip ci]"
-          git push
+          # GitHub rejects individual files larger than 100 MB. If the decode
+          # exceeds repository limits, preserve the run output as an artifact
+          # instead of silently truncating or modifying the decoded tree.
+          if git diff --cached --name-only -z | xargs -0 -r -I{} sh -c 'test ! -f "$1" || test "$(stat -c%s "$1")" -le 100000000' _ {} ; then
+            git commit -m "Add full APK decode for inspection [skip ci]"
+            git push
+          else
+            echo "A decoded file exceeds GitHub's 100 MB per-file limit."
+            exit 1
+          fi
+
+      - name: Upload decoded tree if commit limits are exceeded
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: roblox-apk-full-decode
+          path: inspection/decompiled/
+          if-no-files-found: warn
+          retention-days: 7

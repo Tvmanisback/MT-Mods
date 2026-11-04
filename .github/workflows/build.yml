@@ -90,6 +90,8 @@ jobs:
         run: |
           set -euo pipefail
           apktool b "$DECODED_PROJECT" -o "$RUNNER_TEMP/Roblox-1.0.0-unsigned.apk"
+          test -s "$RUNNER_TEMP/Roblox-1.0.0-unsigned.apk"
+          zipalign -f -p 4 "$RUNNER_TEMP/Roblox-1.0.0-unsigned.apk" "$RUNNER_TEMP/Roblox-1.0.0-aligned.apk"
 
       - name: Sign rebuilt APK with a temporary CI debug key
         run: |
@@ -105,8 +107,10 @@ jobs:
             --ks-pass pass:android \
             --key-pass pass:android \
             --out output/Roblox-1.0.0.apk \
-            "$RUNNER_TEMP/Roblox-1.0.0-unsigned.apk"
+            "$RUNNER_TEMP/Roblox-1.0.0-aligned.apk"
           apksigner verify --verbose output/Roblox-1.0.0.apk
+          unzip -t output/Roblox-1.0.0.apk
+          test -s output/Roblox-1.0.0.apk
           sha256sum output/Roblox-1.0.0.apk > output/SHA256SUMS.txt
 
       - name: Upload APK artifact

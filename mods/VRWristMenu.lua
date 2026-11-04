@@ -61,7 +61,7 @@ end
 function WristMenu:_build()
     local anchor = make("Part", {
         Name = "ASSOCIATED_WristMenuAnchor",
-        Size = Vector3.new(0.01, 0.01, 0.01),
+        Size = Vector3.new(0.72, 0.52, 0.02),
         Transparency = 1,
         Anchored = true,
         CanCollide = false,

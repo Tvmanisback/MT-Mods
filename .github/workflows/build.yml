@@ -38,10 +38,53 @@ jobs:
           test -s "$RUNNER_TEMP/Roblox-original.apk"
           mkdir -p "$RUNNER_TEMP/apk-additions/assets/mt-mods" output
 
+      - name: Hook the existing game activity and compile the menu
+        run: |
+          set -euo pipefail
+          TOOLS="$RUNNER_TEMP/dex-tools"
+          mkdir -p "$TOOLS" "$RUNNER_TEMP/dex-work" "$RUNNER_TEMP/menu-classes"
+          curl -fsSL https://repo1.maven.org/maven2/org/smali/baksmali/2.5.2/baksmali-2.5.2.jar -o "$TOOLS/baksmali.jar"
+          curl -fsSL https://repo1.maven.org/maven2/org/smali/smali/2.5.2/smali-2.5.2.jar -o "$TOOLS/smali.jar"
+          unzip -p "$RUNNER_TEMP/Roblox-original.apk" classes2.dex > "$RUNNER_TEMP/dex-work/classes2.dex"
+          java -jar "$TOOLS/baksmali.jar" disassemble "$RUNNER_TEMP/dex-work/classes2.dex" -o "$RUNNER_TEMP/dex-work/smali"
+          python3 - "$RUNNER_TEMP/dex-work/smali/com/roblox/client/startup/MainGameActivity.smali" <<'PY'
+          from pathlib import Path
+          import sys
+          p = Path(sys.argv[1])
+          source = p.read_text()
+          hook = '    invoke-super {p0, p1}, Lcom/google/androidgamesdk/GameActivity;->onCreate(Landroid/os/Bundle;)V\\n'
+          call = '\\n    invoke-static {p0}, Lcom/roblox/client/MTModsMenu;->install(Landroid/app/Activity;)V\\n'
+          if source.count(hook) != 1:
+              raise SystemExit('Could not uniquely locate MainGameActivity.onCreate hook')
+          p.write_text(source.replace(hook, hook + call, 1))
+          PY
+          java -jar "$TOOLS/smali.jar" assemble "$RUNNER_TEMP/dex-work/smali" -o "$RUNNER_TEMP/dex-work/classes2-patched.dex"
+          mkdir -p "$RUNNER_TEMP/dex-work/repacked"
+          cp "$RUNNER_TEMP/Roblox-original.apk" "$RUNNER_TEMP/Roblox-hooked.apk"
+          (cd "$RUNNER_TEMP/dex-work" && zip -q "$RUNNER_TEMP/Roblox-hooked.apk" classes2-patched.dex)
+          zip -d "$RUNNER_TEMP/Roblox-hooked.apk" classes2.dex >/dev/null
+          (cd "$RUNNER_TEMP/dex-work" && zip -q "$RUNNER_TEMP/Roblox-hooked.apk" classes2-patched.dex)
+          zip -d "$RUNNER_TEMP/Roblox-hooked.apk" classes2-patched.dex >/dev/null
+          mv "$RUNNER_TEMP/Roblox-hooked.apk" "$RUNNER_TEMP/Roblox-original.apk"
+          SDK_BUILD="$ANDROID_SDK_ROOT/build-tools/35.0.0"
+          javac -source 8 -target 8 -bootclasspath "$ANDROID_SDK_ROOT/platforms/android-35/android.jar" \\
+            -d "$RUNNER_TEMP/menu-classes" native/java/com/roblox/client/MTModsMenu.java
+          "$SDK_BUILD/d8" --min-api 24 --output "$RUNNER_TEMP/dex-work/menu-dex" "$RUNNER_TEMP/menu-classes/com/roblox/client/MTModsMenu.class"
+          NEXT_DEX="$(python3 - "$RUNNER_TEMP/Roblox-original.apk" <<'PY'
+          import re, subprocess, sys
+          names = subprocess.check_output(['unzip','-Z1',sys.argv[1]], text=True).splitlines()
+          nums = [int(m.group(1) or 1) for n in names if (m:=re.fullmatch(r'classes(\\d*)\\.dex', n))]
+          print(f'classes{max(nums or [1])+1}.dex')
+          PY
+          )"
+          cp "$RUNNER_TEMP/dex-work/menu-dex/classes.dex" "$RUNNER_TEMP/dex-work/$NEXT_DEX"
+          (cd "$RUNNER_TEMP/dex-work" && zip -q "$RUNNER_TEMP/Roblox-original.apk" "$NEXT_DEX")
+          echo "Added native menu entry point in $NEXT_DEX and hooked MainGameActivity.onCreate"
+
       - name: Bundle MT-Mods source as APK assets
         run: |
           set -euo pipefail
-          cp -R framework mods "$RUNNER_TEMP/apk-additions/assets/mt-mods/"
+          cp -R framework mods "$RUNNER_TEMP/apk-additions/assets/mt-mods/"\n          cp native/java/com/roblox/client/MTModsMenu.java "$RUNNER_TEMP/apk-additions/assets/mt-mods/MTModsMenu.java"
           if [ -d res ]; then
             cp -R res "$RUNNER_TEMP/apk-additions/assets/mt-mods/"
           fi

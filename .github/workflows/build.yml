@@ -17,7 +17,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y apktool zip unzip curl cmake ninja-build
+          sudo apt-get install -y openjdk-17-jre-headless zip unzip curl cmake ninja-build
           SDK_ROOT="$RUNNER_TEMP/android-sdk"
           mkdir -p "$SDK_ROOT/cmdline-tools"
           curl -fsSL https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o "$RUNNER_TEMP/cmdline-tools.zip"
@@ -28,6 +28,12 @@ jobs:
           "$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$SDK_ROOT" "platform-tools" "build-tools;35.0.0" "ndk;27.2.12479018"
           echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
           echo "$SDK_ROOT/build-tools/35.0.0" >> "$GITHUB_PATH"
+
+      - name: Install current Apktool
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar -o "$RUNNER_TEMP/apktool.jar"
+          java -jar "$RUNNER_TEMP/apktool.jar" --version
 
       - name: Download decoded client project
         env:
@@ -89,7 +95,7 @@ jobs:
       - name: Rebuild APK with APKTool
         run: |
           set -euo pipefail
-          apktool b "$DECODED_PROJECT" -o "$RUNNER_TEMP/Roblox-1.0.0-unsigned.apk"
+          java -jar "$RUNNER_TEMP/apktool.jar" b "$DECODED_PROJECT" -o "$RUNNER_TEMP/Roblox-1.0.0-unsigned.apk"
           test -s "$RUNNER_TEMP/Roblox-1.0.0-unsigned.apk"
           zipalign -f -p 4 "$RUNNER_TEMP/Roblox-1.0.0-unsigned.apk" "$RUNNER_TEMP/Roblox-1.0.0-aligned.apk"
 

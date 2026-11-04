@@ -52,6 +52,11 @@ jobs:
             echo "::error::The supplied ZIP does not contain a valid decoded APKTool project."
             exit 1
           fi
+          # Apktool 3's metadata reader expects versionCode as an integer.
+          # This archive stores it as a quoted scalar, which its parser passes
+          # literally to Integer.parseInt and rejects.
+          sed -i -E "s/^([[:space:]]*versionCode:)[[:space:]]*['\"]?([0-9]+)['\"]?[[:space:]]*$/\\1 \\2/" "$PROJECT/apktool.yml"
+          grep -nE '^[[:space:]]*versionCode:' "$PROJECT/apktool.yml"
           echo "DECODED_PROJECT=$PROJECT" >> "$GITHUB_ENV"
           echo "Decoded project: $PROJECT"
 

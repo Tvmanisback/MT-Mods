@@ -30,14 +30,17 @@ jobs:
           unzip -t "$RUNNER_TEMP/input/roblox-apk-full-decode.zip"
 
       - name: Validate decoded archive and record metadata
+        env:
+          ARCHIVE: ${{ runner.temp }}/input/roblox-apk-full-decode.zip
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import hashlib
+          import os
           import pathlib
           import zipfile
 
-          archive = pathlib.Path("$RUNNER_TEMP/input/roblox-apk-full-decode.zip")
+          archive = pathlib.Path(os.environ["ARCHIVE"])
           report = pathlib.Path("output/input-report.txt")
           with zipfile.ZipFile(archive) as zf:
               names = [n for n in zf.namelist() if not n.endswith("/")]
@@ -48,10 +51,10 @@ jobs:
                   raise SystemExit("Decoded archive is missing: " + ", ".join(sorted(missing)))
               digest = hashlib.sha256(archive.read_bytes()).hexdigest()
           report.write_text(
-              "Decoded input archive validated.\n"
-              f"Archive: {archive.name}\n"
-              f"Files: {len(names)}\n"
-              f"SHA-256: {digest}\n",
+              "Decoded input archive validated.\\n"
+              f"Archive: {archive.name}\\n"
+              f"Files: {len(names)}\\n"
+              f"SHA-256: {digest}\\n",
               encoding="utf-8",
           )
           PY

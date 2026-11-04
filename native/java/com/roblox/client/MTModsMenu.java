@@ -120,6 +120,13 @@ public final class MTModsMenu {
                 panel.addView(toggle, row);
                 toggle.setOnClickListener(v -> {
                     boolean next = !a.getSharedPreferences(PREFS, 0).getBoolean(key, false);
+                    if (scriptLoader != null) {
+                        String scriptError = scriptLoader.runFeature(key, next);
+                        if (!scriptError.isEmpty()) {
+                            Toast.makeText(a, scriptError, Toast.LENGTH_LONG).show();
+                            return;
+                        }
+                    }
                     a.getSharedPreferences(PREFS, 0).edit().putBoolean(key, next).apply();
                     toggle.setText(key + "     " + (next ? "ON" : "OFF"));
                     toggle.setBackground(shape(next ? Color.rgb(30, 125, 91) : Color.rgb(48, 61, 82), 10));

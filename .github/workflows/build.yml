@@ -1,4 +1,4 @@
-name: Build Roblox 1.0.0 Modded APK
+name: Package Roblox 1.0.0 APK with MT-Mods
 
 on:
   workflow_dispatch:
@@ -29,56 +29,30 @@ jobs:
           echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
           echo "$SDK_ROOT/build-tools/35.0.0" >> "$GITHUB_PATH"
 
-      - name: Install current Apktool
+      - name: Download original APK and prepare additions
         run: |
           set -euo pipefail
-          curl -fsSL https://github.com/iBotPeaches/Apktool/releases/download/v3.0.3/apktool_3.0.3.jar -o "$RUNNER_TEMP/apktool.jar"
-          java -jar "$RUNNER_TEMP/apktool.jar" --version
+          curl --fail --location --retry 3 \
+            "https://github.com/Tvmanisback/MT-Mods/releases/download/Test/Roblox_2.745.1137.apk" \
+            -o "$RUNNER_TEMP/Roblox-original.apk"
+          test -s "$RUNNER_TEMP/Roblox-original.apk"
+          mkdir -p "$RUNNER_TEMP/apk-additions/assets/mt-mods" output
 
-      - name: Download decoded client project
-        env:
-          INPUT_URL: https://github.com/Tvmanisback/MT-Mods/releases/download/Test/roblox-apk-full-decode.zip
+      - name: Bundle MT-Mods source as APK assets
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/client" output
-          curl --fail --location --retry 3 "$INPUT_URL" -o "$RUNNER_TEMP/client/decoded-client.zip"
-          unzip -q "$RUNNER_TEMP/client/decoded-client.zip" -d "$RUNNER_TEMP/client/unpacked"
-
-      - name: Locate decoded APKTool project
-        run: |
-          set -euo pipefail
-          PROJECT="$(find "$RUNNER_TEMP/client/unpacked" -type f -name apktool.yml -print -quit | xargs -r dirname)"
-          if [ -z "$PROJECT" ] || [ ! -f "$PROJECT/AndroidManifest.xml" ]; then
-            echo "::error::The supplied ZIP does not contain a valid decoded APKTool project."
-            exit 1
-          fi
-          # Apktool 3's metadata reader expects versionCode as an integer.
-          # This archive stores it as a quoted scalar, which its parser passes
-          # literally to Integer.parseInt and rejects.
-          sed -i -E "s/^([[:space:]]*versionCode:)[[:space:]]*['\"]?([0-9]+)['\"]?[[:space:]]*$/\\1 \\2/" "$PROJECT/apktool.yml"
-          grep -nE '^[[:space:]]*versionCode:' "$PROJECT/apktool.yml"
-          echo "DECODED_PROJECT=$PROJECT" >> "$GITHUB_ENV"
-          echo "Decoded project: $PROJECT"
-
-      - name: Bundle the complete MT-Mods source into APK assets
-        run: |
-          set -euo pipefail
-          mkdir -p "$DECODED_PROJECT/assets/mt-mods"
-          cp -R framework "$DECODED_PROJECT/assets/mt-mods/"
-          cp -R mods "$DECODED_PROJECT/assets/mt-mods/"
+          cp -R framework mods "$RUNNER_TEMP/apk-additions/assets/mt-mods/"
           if [ -d res ]; then
-            cp -R res "$DECODED_PROJECT/assets/mt-mods/"
+            cp -R res "$RUNNER_TEMP/apk-additions/assets/mt-mods/"
           fi
-          cp README.md "$DECODED_PROJECT/assets/mt-mods/README.md"
-          cat > "$DECODED_PROJECT/assets/mt-mods/BUILD-INFO.txt" <<'EOF'
+          cp README.md "$RUNNER_TEMP/apk-additions/assets/mt-mods/README.md"
+          cat > "$RUNNER_TEMP/apk-additions/assets/mt-mods/BUILD-INFO.txt" <<'EOF'
           MT-Mods 1.0.0 source bundle
           Included: framework, mods, resources, README.
           Luau VM shared library is packaged at lib/arm64-v8a/libmtluau.so.
-          The Java JNI wrapper is included as source under assets/mt-mods/native.
-          The host app must compile/call that wrapper and provide any engine API bindings.
+          The host app must compile/call the JNI wrapper and provide engine API bindings.
           This package does not inject into the client or bypass anti-cheat.
           EOF
-
 
       - name: Build embedded Luau runtime for Android ARM64
         run: |
@@ -91,18 +65,22 @@ jobs:
           cmake --build "$RUNNER_TEMP/mtluau-build" --config Release --parallel 2
           LIBRARY="$(find "$RUNNER_TEMP/mtluau-build" -name libmtluau.so -print -quit)"
           test -n "$LIBRARY"
-          mkdir -p "$DECODED_PROJECT/lib/arm64-v8a"
-          cp "$LIBRARY" "$DECODED_PROJECT/lib/arm64-v8a/libmtluau.so"
-          mkdir -p "$DECODED_PROJECT/assets/mt-mods/native"
-          cp -R native/java "$DECODED_PROJECT/assets/mt-mods/native/"
-          cp native/README.md "$DECODED_PROJECT/assets/mt-mods/native/README.md"
+          mkdir -p "$RUNNER_TEMP/apk-additions/lib/arm64-v8a"
+          cp "$LIBRARY" "$RUNNER_TEMP/apk-additions/lib/arm64-v8a/libmtluau.so"
+          mkdir -p "$RUNNER_TEMP/apk-additions/assets/mt-mods/native"
+          cp -R native/java "$RUNNER_TEMP/apk-additions/assets/mt-mods/native/"
+          cp native/README.md "$RUNNER_TEMP/apk-additions/assets/mt-mods/native/README.md"
 
-      - name: Rebuild APK with APKTool
+      - name: Add MT-Mods files without rebuilding Android resources
         run: |
           set -euo pipefail
-          java -jar "$RUNNER_TEMP/apktool.jar" b "$DECODED_PROJECT" -o "$RUNNER_TEMP/Roblox-1.0.0-unsigned.apk"
-          test -s "$RUNNER_TEMP/Roblox-1.0.0-unsigned.apk"
+          cp "$RUNNER_TEMP/Roblox-original.apk" "$RUNNER_TEMP/Roblox-1.0.0-unsigned.apk"
+          (
+            cd "$RUNNER_TEMP/apk-additions"
+            zip -q -r "$RUNNER_TEMP/Roblox-1.0.0-unsigned.apk" assets/mt-mods lib/arm64-v8a/libmtluau.so
+          )
           zipalign -f -p 4 "$RUNNER_TEMP/Roblox-1.0.0-unsigned.apk" "$RUNNER_TEMP/Roblox-1.0.0-aligned.apk"
+          test -s "$RUNNER_TEMP/Roblox-1.0.0-aligned.apk"
 
       - name: Sign rebuilt APK with a temporary CI debug key
         run: |

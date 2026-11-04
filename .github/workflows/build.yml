@@ -1,24 +1,20 @@
-name: Roblox APK Inspection
+name: Roblox APK Resource Decode
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
 permissions:
   contents: write
 jobs:
-  inspect:
+  decode:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: true
 
-      - uses: android-actions/setup-android@v3
-
-      - name: Install Android build tools
+      - name: Install Apktool
         run: |
-          sdkmanager "build-tools;35.0.0"
-          echo "$ANDROID_HOME/build-tools/35.0.0" >> "$GITHUB_PATH"
+          sudo apt-get update
+          sudo apt-get install -y apktool
 
       - name: Download APK from GitHub Release
         run: |
@@ -29,36 +25,33 @@ jobs:
             -o "$RUNNER_TEMP/apk-input/Roblox_2.745.1137.apk"
           test -s "$RUNNER_TEMP/apk-input/Roblox_2.745.1137.apk"
 
-      - name: Inspect package without decompiling executable code
+      - name: Decode manifest and resources
         run: |
           set -euo pipefail
           APK="$RUNNER_TEMP/apk-input/Roblox_2.745.1137.apk"
+          rm -rf inspection/decompiled
           mkdir -p inspection
+          # Decode Android resources and manifest, while deliberately skipping
+          # DEX-to-smali output and executable-code reconstruction.
+          apktool d --no-src --force -o inspection/decompiled "$APK"
+          mkdir -p inspection
+          printf '%s\n' \
+            "# APK resource decode" \
+            "" \
+            "Decoded AndroidManifest.xml and Android resources with Apktool." \
+            "DEX/smali executable-code decompilation is not included." \
+            > inspection/README.md
+          sha256sum "$APK" > inspection/apk-sha256.txt
 
-          {
-            echo "# Roblox APK inspection"
-            echo
-            echo "- Release asset: `Test/Roblox_2.745.1137.apk`"
-            echo "- APK size: $(du -h "$APK" | cut -f1)"
-            echo "- SHA-256: $(sha256sum "$APK" | awk '{print $1}')"
-            echo "- Inspection scope: package metadata, decoded manifest, permissions, and archive index."
-            echo "- No DEX/smali decompilation or executable-code modification is performed."
-          } > inspection/README.md
-
-          aapt dump badging "$APK" > inspection/package-info.txt
-          aapt dump permissions "$APK" > inspection/permissions.txt
-          aapt dump xmltree "$APK" AndroidManifest.xml > inspection/manifest-tree.txt
-          unzip -Z1 "$APK" > inspection/archive-index.txt
-
-      - name: Commit inspection files
+      - name: Commit decoded files
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+users.noreply.github.com"
-          git add inspection/
+          git add -A inspection/
           if git diff --cached --quiet; then
-            echo "Inspection output has not changed."
+            echo "Decoded output has not changed."
             exit 0
           fi
-          git commit -m "Add read-only Roblox APK inspection output [skip ci]"
+          git commit -m "Decode APK resources for inspection [skip ci]"
           git push

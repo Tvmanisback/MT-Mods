@@ -30,7 +30,8 @@ public final class MTModsMenu {
         FEATURES.put("FOV Override", "Visuals");
     }
 
-    private MTModsMenu() {}\n    private static MTModsScriptLoader scriptLoader;
+    private MTModsMenu() {}
+    private static MTModsScriptLoader scriptLoader;
 
     public static void install(Activity activity) {
         if (activity == null || activity.isFinishing()) return;

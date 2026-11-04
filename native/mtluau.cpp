@@ -39,7 +39,7 @@ lua_State* stateFrom(jlong handle) {
 }
 
 extern "C" JNIEXPORT jlong JNICALL
-Java_com_tvman_mtmods_LuauRuntime_nativeCreate(JNIEnv*, jclass) {
+Java_com_roblox_client_LuauRuntime_nativeCreate(JNIEnv*, jclass) {
     lua_State* L = luaL_newstate();
     if (!L) return 0;
     luaL_openlibs(L);
@@ -53,7 +53,7 @@ Java_com_tvman_mtmods_LuauRuntime_nativeCreate(JNIEnv*, jclass) {
 }
 
 extern "C" JNIEXPORT jstring JNICALL
-Java_com_tvman_mtmods_LuauRuntime_nativeExecute(JNIEnv* env, jclass, jlong handle, jstring source) {
+Java_com_roblox_client_LuauRuntime_nativeExecute(JNIEnv* env, jclass, jlong handle, jstring source) {
     lua_State* L = stateFrom(handle);
     if (!L || !source) return env->NewStringUTF("Luau state is not initialized.");
     const char* chars = env->GetStringUTFChars(source, nullptr);
@@ -79,7 +79,7 @@ Java_com_tvman_mtmods_LuauRuntime_nativeExecute(JNIEnv* env, jclass, jlong handl
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_tvman_mtmods_LuauRuntime_nativeDestroy(JNIEnv*, jclass, jlong handle) {
+Java_com_roblox_client_LuauRuntime_nativeDestroy(JNIEnv*, jclass, jlong handle) {
     lua_State* L = stateFrom(handle);
     if (!L) return;
     {

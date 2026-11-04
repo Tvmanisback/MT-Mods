@@ -93,7 +93,8 @@ jobs:
           MT-Mods 1.0.0 source bundle
           Included: framework, mods, resources, README.
           Luau VM shared library is packaged at lib/arm64-v8a/libmtluau.so.
-          MTModsScriptLoader runs bundled Luau feature scripts using the embedded VM.\n          Gameplay changes require an explicit, supported game-engine API bridge.
+          MTModsScriptLoader runs bundled Luau feature scripts using the embedded VM.
+          Gameplay changes require an explicit, supported game-engine API bridge.
           This package does not inject into the client or bypass anti-cheat.
           EOF
 
